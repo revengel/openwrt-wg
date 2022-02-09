@@ -1,19 +1,13 @@
 # openwrt-wg
 
 ```bash
-vim /etc/firewall.user
+vim /etc/init.d/refilliptableswg
 ```
 
-```bash
-# create chain
-iptables -t mangle -N MARKFORWG
+```sh
+#!/bin/sh
 iptables -t mangle -F MARKFORWG
 iptables -t mangle -A MARKFORWG -j RETURN
-
-# jump to MARKFORWG
-iptables -t mangle -A PREROUTING -j MARKFORWG
-iptables -t mangle -A OUTPUT -j MARKFORWG
-
 ips_file_path="/tmp/ip_addresses_to_wg.txt"
 if [ -f "$ips_file_path" ]; then
     for ip_addr in $(cat ${ips_file_path} | grep -ve '^\s*$' | grep -ve '^\s*#' | uniq); do
@@ -22,7 +16,47 @@ if [ -f "$ips_file_path" ]; then
 fi
 ```
 
+
 ```bash
+chmod +x /etc/init.d/refilliptableswg
+```
+
+---
+
+```bash
+vim /etc/init.d/dwwgips
+```
+
+```sh
+#!/bin/sh
+echo "Run download list"
+ips_file_path="/tmp/ip_addresses_to_wg.txt"
+wget -O ${ips_file_path} https://raw.githubusercontent.com/revengel/openwrt-wg/main/ip_addresses_to_wg.txt
+```
+
+```bash
+chmod +x /etc/init.d/dwwgips
+```
+
+---
+
+
+```bash
+vim /etc/firewall.user
+```
+
+```sh
+# create chain
+iptables -t mangle -N MARKFORWG
+# jump to MARKFORWG
+iptables -t mangle -A PREROUTING -j MARKFORWG
+iptables -t mangle -A OUTPUT -j MARKFORWG
+/etc/init.d/refilliptableswg
+```
+
+---
+
+```sh
 vim /etc/hotplug.d/iface/30-rknroute
 ```
 
@@ -30,6 +64,8 @@ vim /etc/hotplug.d/iface/30-rknroute
 #!/bin/sh
 ip route add default dev wg0 table 200
 ```
+
+---
 
 ```bash
 vim /etc/config/network
@@ -43,6 +79,8 @@ config rule
     option mark '0xc8'
 ```
 
+---
+
 ```bash
 vim /etc/init.d/ip2wg
 ```
@@ -52,8 +90,7 @@ vim /etc/init.d/ip2wg
 
 START=99
 
-echo "Run download list"
-wget -O /tmp/ip_addresses_to_wg.txt https://raw.githubusercontent.com/revengel/openwrt-wg/main/ip_addresses_to_wg.txt
+/etc/init.d/dwwgips
 echo "Firewall restart"
 /etc/init.d/firewall restart
 ```
@@ -63,11 +100,32 @@ chmod +x /etc/init.d/ip2wg
 ln -s /etc/init.d/ip2wg /etc/rc.d/S99ip2wg
 ```
 
+---
+
+```bash
+vim /etc/init.d/ip2wghot
+```
+
+```sh
+#!/bin/sh
+
+START=99
+
+/etc/init.d/dwwgips
+/etc/init.d/refilliptableswg
+```
+
+```bash
+chmod +x /etc/init.d/ip2wghot
+```
+
+---
+
 ```bash
 crontab -e
 ```
 
-`0 4 * * * /etc/init.d/ip2wg`
+`0 */2 * * * /etc/init.d/ip2wghot`
 
 ```bash
 /etc/init.d/cron enable
